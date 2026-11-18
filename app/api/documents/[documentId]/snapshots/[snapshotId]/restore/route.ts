@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { canEditDocument, getDocumentAccess } from "@/lib/permissions";
 import { isDatabaseConfigured } from "@/lib/env";
 import { isRichTextCollaborationConfigured, RichTextCommandError, sendRichTextCommand } from "@/lib/rich-text-collaboration";
+import { CanvasCommandError, sendCanvasCommand } from "@/lib/canvas-collaboration";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ documentId: string; snapshotId: string }> }) {
   if (!isDatabaseConfigured()) return NextResponse.json({ ok: false, message: "Database is not configured." }, { status: 503 });
@@ -16,6 +17,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ do
     prisma.documentSnapshot.findFirst({ where: { id: snapshotId, documentId }, select: { id: true, content: true, label: true } }),
   ]);
   if (!document || !snapshot) return NextResponse.json({ ok: false, message: "Snapshot not found." }, { status: 404 });
+  if (access.document?.type === "CANVAS") {
+    try {
+      await sendCanvasCommand(documentId, access.user!.id, "restore", { snapshotId });
+    } catch (error) {
+      if (error instanceof CanvasCommandError) {
+        return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+    return NextResponse.json({ ok: true, restoredSnapshotId: snapshot.id, label: snapshot.label });
+  }
   if (access.document?.type === "PAGE" && isRichTextCollaborationConfigured()) {
     try {
       await sendRichTextCommand(documentId, access.user!.id, "restore", { content: snapshot.content });

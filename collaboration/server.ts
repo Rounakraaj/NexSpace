@@ -268,7 +268,9 @@ async function handleControlRequest(
     if (response.headersSent) throw null;
     const status = error && typeof error === "object" && "status" in error && typeof error.status === "number" ? error.status : 500;
     if (status === 500) console.error("Rich-text collaboration operation failed.", error);
-    jsonResponse(response, status, { message: error instanceof Error ? error.message : "The collaboration operation failed." });
+    jsonResponse(response, status, {
+      message: status >= 500 ? "The collaboration operation failed." : error instanceof Error ? error.message : "The collaboration operation failed.",
+    });
   }
   throw null;
 }

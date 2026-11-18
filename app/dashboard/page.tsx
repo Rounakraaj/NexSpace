@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getCurrentUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Dashboard } from "./workspace-dashboard";
@@ -7,6 +8,9 @@ import { Dashboard } from "./workspace-dashboard";
 export const instant = false;
 
 export default async function DashboardPage() {
+  // The dashboard is private and session-specific; keep auth and workspace
+  // queries out of the prerendered shell when Cache Components are enabled.
+  await connection();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const workspaces = await prisma.workspace.findMany({

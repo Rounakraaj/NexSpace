@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
 import { isDatabaseConfigured } from "@/lib/env";
 import { workspaceCreateSchema } from "@/lib/validation";
+import { parseJsonRequest } from "@/lib/request";
 
 const slugBase = (name: string) => name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "workspace";
 
@@ -29,9 +30,9 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, message: "Authentication required." }, { status: 401 });
 
-  let input: unknown;
-  try { input = await request.json(); } catch { return NextResponse.json({ ok: false, message: "Invalid JSON body." }, { status: 400 }); }
-  const parsed = workspaceCreateSchema.safeParse(input);
+  const input = await parseJsonRequest(request);
+  if (!input.ok) return NextResponse.json({ ok: false, message: input.reason === "too-large" ? "Request body is too large." : "Invalid JSON body." }, { status: input.reason === "too-large" ? 413 : 400 });
+  const parsed = workspaceCreateSchema.safeParse(input.value);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Workspace details are invalid." }, { status: 400 });
 
   const workspace = await prisma.$transaction(async (tx) => {

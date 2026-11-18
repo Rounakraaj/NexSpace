@@ -28,7 +28,7 @@ export function AuthForms({ googleReady, callbackUrl = "/dashboard" }: { googleR
       }
       const result = await signIn("credentials", { email, password, redirect: false, callbackUrl });
       if (result?.error) {
-        setMessage(mode === "signin" ? "Email or password did not match." : "Your account was created, but sign-in failed. Try signing in.");
+        setMessage(mode === "signin" ? "Email or password did not match." : "We could not sign you in. If you already have an account, try signing in instead.");
         return;
       }
       router.push(callbackUrl);

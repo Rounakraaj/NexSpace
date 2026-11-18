@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { canManageWorkspace, getCurrentUser, getWorkspaceRole } from "@/lib/permissions";
 import { isDatabaseConfigured } from "@/lib/env";
 import { memberRoleSchema } from "@/lib/validation";
+import { parseJsonRequest } from "@/lib/request";
 
 type Context = { params: Promise<{ workspaceId: string; memberId: string }> };
 
@@ -20,9 +21,9 @@ export async function PATCH(request: Request, { params }: Context) {
   const { workspaceId, memberId } = await params;
   const access = await requireOwner(workspaceId);
   if (access.status !== 200) return NextResponse.json({ message: access.status === 401 ? "Authentication required." : access.status === 403 ? "Owner permission required." : "Workspace not found." }, { status: access.status });
-  let body: unknown;
-  try { body = await request.json(); } catch { return NextResponse.json({ message: "Invalid JSON body." }, { status: 400 }); }
-  const parsed = memberRoleSchema.safeParse(body);
+  const body = await parseJsonRequest(request);
+  if (!body.ok) return NextResponse.json({ message: body.reason === "too-large" ? "Request body is too large." : "Invalid JSON body." }, { status: body.reason === "too-large" ? 413 : 400 });
+  const parsed = memberRoleSchema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ message: "Member role is invalid." }, { status: 400 });
   const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { ownerId: true } });
   const member = await prisma.workspaceMember.findFirst({ where: { id: memberId, workspaceId, userId: { not: workspace?.ownerId } }, select: { id: true } });

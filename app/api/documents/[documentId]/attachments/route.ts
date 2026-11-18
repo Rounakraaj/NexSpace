@@ -5,6 +5,7 @@ import { isDatabaseConfigured, env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { uploadPrivateObject, deletePrivateObject } from "@/lib/supabase-storage";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { readBoundedRequestBody } from "@/lib/request";
 
 const maxFileSize = 10 * 1024 * 1024;
 const mimeTypes: Record<string, { extension: string; signature: (bytes: Uint8Array) => boolean }> = {
@@ -17,8 +18,6 @@ const mimeTypes: Record<string, { extension: string; signature: (bytes: Uint8Arr
 export async function POST(request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   if (!isDatabaseConfigured()) return NextResponse.json({ message: "Database is not configured." }, { status: 503 });
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.SUPABASE_STORAGE_BUCKET) return NextResponse.json({ message: "Supabase Storage is not configured." }, { status: 503 });
-  const length = Number(request.headers.get("content-length") ?? 0);
-  if (length > maxFileSize + 64 * 1024) return NextResponse.json({ message: "File exceeds the 10 MB upload limit." }, { status: 413 });
   const { documentId } = await params;
   const access = await getDocumentAccess(documentId);
   if (access.status !== 200 || !access.user) return NextResponse.json({ message: access.status === 401 ? "Authentication required." : "Document not found." }, { status: access.status });
@@ -26,8 +25,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ doc
   const rate = await consumeRateLimit(`upload:${access.user.id}`, 20, 60 * 60 * 1000);
   if (rate.unavailable) return NextResponse.json({ message: "Shared request limiting is temporarily unavailable." }, { status: 503 });
   if (!rate.allowed) return NextResponse.json({ message: "Upload limit reached. Try again later." }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } });
+  const body = await readBoundedRequestBody(request, maxFileSize + 64 * 1024);
+  if (!body.ok) return NextResponse.json({ message: body.reason === "too-large" ? "File exceeds the 10 MB upload limit." : "Upload form is invalid." }, { status: body.reason === "too-large" ? 413 : 400 });
+  const contentType = request.headers.get("content-type");
+  if (!contentType?.toLowerCase().startsWith("multipart/form-data;")) return NextResponse.json({ message: "Upload form is invalid." }, { status: 400 });
   let form: FormData;
-  try { form = await request.formData(); } catch { return NextResponse.json({ message: "Upload form is invalid." }, { status: 400 }); }
+  try {
+    form = await new Request(request.url, {
+      method: "POST",
+      headers: { "content-type": contentType },
+      body: Buffer.from(body.bytes),
+    }).formData();
+  } catch {
+    return NextResponse.json({ message: "Upload form is invalid." }, { status: 400 });
+  }
   const file = form.get("file");
   if (!(file instanceof File)) return NextResponse.json({ message: "Choose an image file." }, { status: 400 });
   if (!file.size || file.size > maxFileSize) return NextResponse.json({ message: "File must be smaller than 10 MB." }, { status: 413 });

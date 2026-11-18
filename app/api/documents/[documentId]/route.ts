@@ -6,6 +6,8 @@ import { isDatabaseConfigured } from "@/lib/env";
 import { documentUpdateSchema, editorContentSchema } from "@/lib/validation";
 import { deletePrivateObjects } from "@/lib/supabase-storage";
 import { isRichTextCollaborationConfigured, RichTextCommandError, sendRichTextCommand } from "@/lib/rich-text-collaboration";
+import { CanvasCommandError, sendCanvasCommand } from "@/lib/canvas-collaboration";
+import { parseJsonRequest } from "@/lib/request";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ documentId: string }> }) {
   if (!isDatabaseConfigured()) return NextResponse.json({ ok: false, message: "Database is not configured." }, { status: 503 });
@@ -27,11 +29,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ do
   if (access.status !== 200) return NextResponse.json({ ok: false, message: access.status === 401 ? "Authentication required." : "Document not found." }, { status: access.status });
   if (!canEditDocument(access.role)) return NextResponse.json({ ok: false, message: "You cannot edit this document." }, { status: 403 });
 
-  const raw = await request.text();
-  if (raw.length > 1_500_000) return NextResponse.json({ ok: false, message: "Request body is too large." }, { status: 413 });
-  let input: unknown;
-  try { input = JSON.parse(raw); } catch { return NextResponse.json({ ok: false, message: "Invalid JSON body." }, { status: 400 }); }
-  const parsed = documentUpdateSchema.safeParse(input);
+  const input = await parseJsonRequest(request, 1_500_000);
+  if (!input.ok) return NextResponse.json({ ok: false, message: input.reason === "too-large" ? "Request body is too large." : "Invalid JSON body." }, { status: input.reason === "too-large" ? 413 : 400 });
+  const parsed = documentUpdateSchema.safeParse(input.value);
   if (!parsed.success) return NextResponse.json({ ok: false, message: "Document changes are invalid." }, { status: 400 });
   if (access.document?.type === "CANVAS" && parsed.data.content !== undefined) {
     return NextResponse.json({ ok: false, message: "Canvas content is saved by the collaborative canvas service." }, { status: 400 });
@@ -137,7 +137,16 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (access.status !== 200) return NextResponse.json({ ok: false, message: access.status === 401 ? "Authentication required." : "Document not found." }, { status: access.status });
   if (!canEditDocument(access.role)) return NextResponse.json({ ok: false, message: "You cannot delete this document." }, { status: 403 });
   const objectKeys = (await prisma.attachment.findMany({ where: { documentId }, select: { objectKey: true } })).map(({ objectKey }) => objectKey);
-  if (isRichTextCollaborationConfigured()) {
+  if (access.document?.type === "CANVAS") {
+    try {
+      await sendCanvasCommand(documentId, access.user!.id, "delete");
+    } catch (error) {
+      if (error instanceof CanvasCommandError) {
+        return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+  } else if (isRichTextCollaborationConfigured()) {
     try {
       await sendRichTextCommand(documentId, access.user!.id, "delete");
     } catch (error) {

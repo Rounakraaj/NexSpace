@@ -5,8 +5,10 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { env } from "@/lib/env";
 import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { consumeCredentialsLoginLimit, getRequestIp } from "@/lib/rate-limit";
 
 const providers: NextAuthOptions["providers"] = [];
+const missingUserPasswordHash = `scrypt:${"0".repeat(32)}:${"0".repeat(128)}`;
 if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
   providers.push(
     GoogleProvider({
@@ -18,12 +20,18 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 providers.push(CredentialsProvider({
   name: "Email and password",
   credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
-  async authorize(credentials) {
+  async authorize(credentials, req) {
     const email = credentials?.email?.trim().toLowerCase();
     const password = credentials?.password;
-    if (!email || !password || password.length > 128) return null;
+    if (!email || email.length > 254 || !password || password.length > 128) return null;
+    const ip = getRequestIp(req.headers);
+    const rate = await consumeCredentialsLoginLimit(ip, email);
+    if (!rate.allowed) return null;
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user?.passwordHash) return null;
+    if (!user?.passwordHash) {
+      await verifyPassword(password, missingUserPasswordHash);
+      return null;
+    }
     if (!await verifyPassword(password, user.passwordHash)) return null;
     return { id: user.id, name: user.name, email: user.email, image: user.image };
   },

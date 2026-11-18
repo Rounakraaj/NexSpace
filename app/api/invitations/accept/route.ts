@@ -4,15 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/permissions";
 import { isDatabaseConfigured } from "@/lib/env";
 import { invitationAcceptSchema } from "@/lib/validation";
+import { parseJsonRequest } from "@/lib/request";
 
 export async function POST(request: Request) {
   if (!isDatabaseConfigured()) return NextResponse.json({ message: "Database is not configured." }, { status: 503 });
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ message: "Authentication required." }, { status: 401 });
   if (!user.email) return NextResponse.json({ message: "Your account needs an email address to accept an invitation." }, { status: 403 });
-  let input: unknown;
-  try { input = await request.json(); } catch { return NextResponse.json({ message: "Invalid JSON body." }, { status: 400 }); }
-  const parsed = invitationAcceptSchema.safeParse(input);
+  const input = await parseJsonRequest(request);
+  if (!input.ok) return NextResponse.json({ message: input.reason === "too-large" ? "Request body is too large." : "Invalid JSON body." }, { status: input.reason === "too-large" ? 413 : 400 });
+  const parsed = invitationAcceptSchema.safeParse(input.value);
   if (!parsed.success) return NextResponse.json({ message: "Invitation token is invalid." }, { status: 400 });
   const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
   const invitation = await prisma.invitation.findUnique({ where: { tokenHash }, select: { id: true, workspaceId: true, email: true, role: true, status: true, expiresAt: true } });

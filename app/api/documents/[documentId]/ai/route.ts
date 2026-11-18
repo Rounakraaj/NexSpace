@@ -7,6 +7,7 @@ import { getDocumentAccess } from "@/lib/permissions";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { aiCopilotSchema } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
+import { parseJsonRequest } from "@/lib/request";
 
 function plainText(value: Prisma.JsonValue, result: string[] = [], depth = 0): string {
   if (depth > 60 || result.join(" ").length > 16_000) return result.join(" ").slice(0, 16_000);
@@ -39,11 +40,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ doc
   if (limit.unavailable) return NextResponse.json({ message: "Shared request limiting is temporarily unavailable." }, { status: 503 });
   if (!limit.allowed) return NextResponse.json({ message: "AI request limit reached. Try again shortly." }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
 
-  const raw = await request.text();
-  if (raw.length > 12_000) return NextResponse.json({ message: "AI request is too large." }, { status: 413 });
-  let input: unknown;
-  try { input = JSON.parse(raw); } catch { return NextResponse.json({ message: "Invalid JSON body." }, { status: 400 }); }
-  const parsed = aiCopilotSchema.safeParse(input);
+  const input = await parseJsonRequest(request, 12_000);
+  if (!input.ok) return NextResponse.json({ message: input.reason === "too-large" ? "AI request is too large." : "Invalid JSON body." }, { status: input.reason === "too-large" ? 413 : 400 });
+  const parsed = aiCopilotSchema.safeParse(input.value);
   if (!parsed.success) return NextResponse.json({ message: "AI request is invalid." }, { status: 400 });
   if (["rewrite", "improve", "explain"].includes(parsed.data.action) && !parsed.data.selection) {
     return NextResponse.json({ message: "Select some text in the document first." }, { status: 400 });

@@ -2,7 +2,7 @@
 
 ## Current status
 
-No cloud services are configured and no deployment has been performed. The app has initial, password-hash, and Yjs-state Prisma migrations. Deploying the frontend alone does not provide collaboration; page sync, canvas sync, OpenAI, and Supabase Storage each need configured server-side services or credentials.
+No deployment has been performed. Deploying the frontend alone does not provide collaboration; PostgreSQL, shared Redis, Auth.js secrets, page sync, Canvas sync, and optional OpenAI/Supabase Storage each need configured services or credentials.
 
 ## PostgreSQL and authentication
 
@@ -19,7 +19,7 @@ No cloud services are configured and no deployment has been performed. The app h
 - Run `npm run db:deploy` as a release step against the production database before routing traffic to new code.
 - Use a dedicated migration credential for the direct URL and least-privilege runtime role where practical.
 - Set secure HTTPS origin and review cookies, provider settings, backups, and restore procedures before production use.
-- Configure the platform readiness probe to call `/api/health`; it returns `200` only when PostgreSQL is reachable and the Auth.js secret is configured.
+- Configure the platform readiness probe to call `/api/health`; in production it returns `200` only when PostgreSQL and shared Redis are reachable and the Auth.js secret is configured.
 
 ## Collaboration service
 
@@ -28,7 +28,9 @@ No cloud services are configured and no deployment has been performed. The app h
 - Set `COLLABORATION_URL` on the server-rendered frontend and `NEXT_PUBLIC_COLLABORATION_URL` to the browser-reachable `wss://` endpoint.
 - Set `COLLABORATION_REDIS_ENABLED=true` and `REDIS_URL` on each collaboration instance to enable Redis fanout. Leave it disabled for one local instance.
 - Set `REDIS_URL` on the Next.js app to use atomic shared request limits for AI, invitations, uploads, and search. Local development falls back to per-process limits if Redis is stopped or unset. Production requires Redis for these routes and fails closed if the URL is unset or Redis becomes unavailable.
-- Deploy the tldraw canvas service separately with `npm run canvas` on Node 22+, sharing `DATABASE_URL` and `COLLABORATION_SECRET`; set `CANVAS_PORT`, `CANVAS_URL`, and `NEXT_PUBLIC_CANVAS_URL` appropriately. `NEXT_PUBLIC_CANVAS_URL` must be reachable by the browser and use `wss://` in production. Run one instance unless the edge/router provides document-aware room affinity; separate in-memory room copies will diverge.
+- Registration and credentials login also use `REDIS_URL` for shared IP/email limits. Registration permits 5 attempts per email and IP per hour; credentials login permits 10 attempts per email and 20 attempts per IP per 15 minutes. Production must remain fail-closed for authentication limits if Redis is unavailable.
+- Deploy the tldraw canvas service separately with `npm run canvas` on Node 22+, sharing `DATABASE_URL` and `COLLABORATION_SECRET`; set `CANVAS_PORT`, `CANVAS_URL`, and `NEXT_PUBLIC_CANVAS_URL` appropriately. `NEXT_PUBLIC_CANVAS_URL` must be reachable by the browser and use `wss://` in production. Run exactly one Canvas service instance: rooms are process-local, and multi-instance coordination is not implemented or tested. Apply Prisma migrations with `npm run db:deploy` before starting the updated service.
+- Canvas snapshots are stored in PostgreSQL and restored through the active Canvas room. Snapshot writes use a per-document revision check to reject stale room state. Edits are persisted with a short debounce and flushed on graceful `SIGINT`/`SIGTERM` shutdown; an abrupt process or host failure may lose edits still inside the debounce or in-flight database write.
 - Set `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` only after obtaining a tldraw license that covers production use. Their SDK's default license terms permit development use only: [tldraw license](https://tldraw.dev/community/license).
 
 ## Optional integrations

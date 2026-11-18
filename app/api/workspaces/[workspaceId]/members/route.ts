@@ -5,6 +5,7 @@ import { canManageWorkspace, getCurrentUser, getWorkspaceRole } from "@/lib/perm
 import { env, isDatabaseConfigured } from "@/lib/env";
 import { invitationCreateSchema } from "@/lib/validation";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { parseJsonRequest } from "@/lib/request";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ workspaceId: string }> }) {
   if (!isDatabaseConfigured()) return NextResponse.json({ message: "Database is not configured." }, { status: 503 });
@@ -32,9 +33,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ wor
   const rate = await consumeRateLimit(`invite:${user.id}`, 10, 60 * 60 * 1000);
   if (rate.unavailable) return NextResponse.json({ message: "Shared request limiting is temporarily unavailable." }, { status: 503 });
   if (!rate.allowed) return NextResponse.json({ message: "Invitation limit reached. Try again later." }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } });
-  let input: unknown;
-  try { input = await request.json(); } catch { return NextResponse.json({ message: "Invalid JSON body." }, { status: 400 }); }
-  const parsed = invitationCreateSchema.safeParse(input);
+  const input = await parseJsonRequest(request);
+  if (!input.ok) return NextResponse.json({ message: input.reason === "too-large" ? "Request body is too large." : "Invalid JSON body." }, { status: input.reason === "too-large" ? 413 : 400 });
+  const parsed = invitationCreateSchema.safeParse(input.value);
   if (!parsed.success) return NextResponse.json({ message: "Invitation details are invalid." }, { status: 400 });
   const { email, role: inviteRole } = parsed.data;
   const [workspace, existingInvitation, existingMember] = await Promise.all([

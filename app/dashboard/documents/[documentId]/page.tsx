@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { getCurrentUser, getDocumentAccess } from "@/lib/permissions";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { getCanvasSyncUrl, getPageCollaborationUrl } from "@/lib/env";
@@ -6,6 +7,8 @@ import { getCanvasSyncUrl, getPageCollaborationUrl } from "@/lib/env";
 export const instant = false;
 
 export default async function DocumentPage({ params }: { params: Promise<{ documentId: string }> }) {
+  // Session and document authorization are request-specific.
+  await connection();
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const { documentId } = await params;

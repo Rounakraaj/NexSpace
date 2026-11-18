@@ -17,7 +17,8 @@ export async function GET(request: Request) {
       database = "unavailable";
     }
   }
-  const ready = authConfigured && database === "ok";
+  const rateLimitsReady = process.env.NODE_ENV !== "production" || sharedRateLimit === "shared";
+  const ready = authConfigured && database === "ok" && rateLimitsReady;
   return NextResponse.json({
     ok: ready,
     checks: {

@@ -20,6 +20,12 @@ async function authorizedAttachment(attachmentId: string) {
   return { status: 200 as const, user, role, attachment };
 }
 
+function contentDispositionFilename(filename: string) {
+  const fallback = filename.replace(/[^\x20-\x7e"\\]/g, "_");
+  const encoded = encodeURIComponent(filename).replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ attachmentId: string }> }) {
   if (!isDatabaseConfigured()) return NextResponse.json({ message: "Database is not configured." }, { status: 503 });
   const { attachmentId } = await params;
@@ -28,11 +34,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ att
   try {
     const stored = await downloadPrivateObject(result.attachment.objectKey);
     if (!stored.ok) return NextResponse.json({ message: "Image is unavailable." }, { status: 502 });
-    const filename = result.attachment.filename.replace(/[\r\n"\\]/g, "_");
     return new Response(stored.body, { status: 200, headers: {
       "Content-Type": result.attachment.mimeType,
       "Content-Length": String(result.attachment.sizeBytes),
-      "Content-Disposition": `inline; filename="${filename}"`,
+      "Content-Disposition": contentDispositionFilename(result.attachment.filename),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     } });
