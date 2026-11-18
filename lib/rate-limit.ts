@@ -40,7 +40,7 @@ function getRedis() {
     lazyConnect: true,
     connectTimeout: 1500,
     maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    enableOfflineQueue: true,
     // Keep this shared client alive across outages; requests fail quickly while
     // it reconnects, then resume using Redis without recreating clients.
     retryStrategy: (attempt) => Math.min(attempt * 500, 5_000),
