@@ -1,26 +1,94 @@
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #09090b;
+  color: #fafafa;
+  font-family: "Geist", "Inter", "Segoe UI", sans-serif;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.35);
+  color: white;
+}
+
+.nexspace-editor .tiptap {
+  min-height: 55vh;
+  color: #d4d4d8;
+  font-size: 15px;
+  line-height: 1.85;
+  outline: none;
+}
+
+.nexspace-editor .tiptap p.is-editor-empty:first-child::before {
+  color: #52525b;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.nexspace-editor .tiptap h1,
+.nexspace-editor .tiptap h2,
+.nexspace-editor .tiptap h3 {
+  color: #fafafa;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+  margin: 1.6em 0 0.5em;
+}
+
+.nexspace-editor .tiptap h1 { font-size: 2rem; }
+.nexspace-editor .tiptap h2 { font-size: 1.55rem; }
+.nexspace-editor .tiptap h3 { font-size: 1.2rem; }
+.nexspace-editor .tiptap p { margin: 0.5rem 0; }
+.nexspace-editor .tiptap strong { color: #f4f4f5; font-weight: 600; }
+.nexspace-editor .tiptap a { color: #c4b5fd; text-decoration: underline; text-underline-offset: 3px; }
+.nexspace-editor .tiptap ul,
+.nexspace-editor .tiptap ol { margin: 0.8rem 0; padding-left: 1.5rem; }
+.nexspace-editor .tiptap ul { list-style: disc; }
+.nexspace-editor .tiptap ol { list-style: decimal; }
+.nexspace-editor .tiptap li { padding-left: 0.25rem; }
+.nexspace-editor .tiptap li p { margin: 0.2rem 0; }
+.nexspace-editor .tiptap blockquote { border-left: 2px solid #8b5cf6; color: #a1a1aa; margin: 1rem 0; padding-left: 1rem; }
+.nexspace-editor .tiptap pre { background: #111116; border: 1px solid rgb(255 255 255 / 8%); border-radius: 0.6rem; color: #ddd6fe; font-family: ui-monospace, monospace; margin: 1rem 0; overflow-x: auto; padding: 1rem; }
+.nexspace-editor .tiptap code { background: rgb(255 255 255 / 7%); border-radius: 0.25rem; color: #ddd6fe; font-family: ui-monospace, monospace; font-size: 0.88em; padding: 0.12rem 0.3rem; }
+.nexspace-editor .tiptap pre code { background: transparent; padding: 0; }
+.nexspace-editor .tiptap hr { border-color: rgb(255 255 255 / 10%); margin: 1.5rem 0; }
+.nexspace-editor .tiptap ul[data-type="taskList"] { list-style: none; padding: 0; }
+.nexspace-editor .tiptap li[data-type="taskItem"] { align-items: baseline; display: flex; gap: 0.55rem; }
+.nexspace-editor .tiptap li[data-type="taskItem"] > label { flex: 0 0 auto; }
+.nexspace-editor .tiptap li[data-type="taskItem"] > div { flex: 1 1 auto; }
+.nexspace-editor .tiptap input[type="checkbox"] { accent-color: #8b5cf6; }
+.nexspace-editor .tiptap table { border-collapse: collapse; margin: 1.25rem 0; table-layout: fixed; width: 100%; }
+.nexspace-editor .tiptap th,
+.nexspace-editor .tiptap td { border: 1px solid rgb(255 255 255 / 12%); min-width: 1em; padding: 0.45rem 0.6rem; position: relative; vertical-align: top; }
+.nexspace-editor .tiptap th { background: rgb(255 255 255 / 5%); color: #f4f4f5; font-weight: 600; }
+.nexspace-editor .tiptap img { border-radius: 0.5rem; height: auto; max-width: 100%; }
+.nexspace-editor .collaboration-carets__caret { border-left: 2px solid; border-right: 0; margin-left: -1px; margin-right: -1px; pointer-events: none; position: relative; word-break: normal; }
+.nexspace-editor .collaboration-carets__label { border-radius: 0.3rem 0.3rem 0.3rem 0; color: white; font-size: 9px; font-weight: 600; left: -1px; line-height: 1; padding: 0.25rem 0.35rem; position: absolute; top: -1.35em; user-select: none; white-space: nowrap; }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #27272a transparent;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

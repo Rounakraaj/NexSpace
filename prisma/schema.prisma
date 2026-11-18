@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  OWNER
+  EDITOR
+  COMMENTER
+  VIEWER
+}
+
+enum WorkspaceVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum DocumentType {
+  PAGE
+  CANVAS
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model User {
+  id            String             @id @default(uuid()) @db.Uuid
+  name          String?
+  email         String?            @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  memberships   WorkspaceMember[]
+  documents     Document[]
+  comments      Comment[]
+  commentThreads CommentThread[] @relation("CommentThreadAuthor")
+  snapshots     DocumentSnapshot[]
+  activityLogs  ActivityLog[]
+  invitations   Invitation[]
+  commentReplies CommentReply[]
+  attachments    Attachment[]
+  ownedWorkspaces   Workspace[] @relation("UserOwnedWorkspaces")
+}
+
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique
+  userId       String   @db.Uuid
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Workspace {
+  id          String              @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String              @unique
+  description String?
+  visibility  WorkspaceVisibility  @default(PRIVATE)
+  ownerId     String              @db.Uuid
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  owner        User              @relation("UserOwnedWorkspaces", fields: [ownerId], references: [id], onDelete: Cascade)
+  members      WorkspaceMember[]
+  documents    Document[]
+  invitations  Invitation[]
+  activityLogs ActivityLog[]
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @db.Uuid
+  userId      String   @db.Uuid
+  role        Role     @default(VIEWER)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId, createdAt])
+}
+
+model Document {
+  id          String       @id @default(uuid()) @db.Uuid
+  workspaceId String       @db.Uuid
+  parentId    String?      @db.Uuid
+  createdById String       @db.Uuid
+  title       String
+  slug        String
+  type        DocumentType @default(PAGE)
+  content     Json?
+  collaborationState Bytes?
+  favorite    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent     Document?        @relation("DocumentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Document[]       @relation("DocumentHierarchy")
+  author     User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  comments   CommentThread[]
+  snapshots  DocumentSnapshot[]
+  attachments Attachment[]
+  activityLog ActivityLog[]
+
+  @@index([workspaceId, parentId])
+  @@index([workspaceId, updatedAt])
+  @@unique([workspaceId, slug])
+}
+
+model CommentThread {
+  id          String   @id @default(uuid()) @db.Uuid
+  documentId  String   @db.Uuid
+  createdById String   @db.Uuid
+  anchor      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author   User     @relation("CommentThreadAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  comments Comment[]
+
+  @@index([documentId, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  threadId  String   @db.Uuid
+  authorId  String   @db.Uuid
+  body      String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  thread CommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  replies CommentReply[]
+}
+
+model CommentReply {
+  id        String   @id @default(uuid()) @db.Uuid
+  commentId String   @db.Uuid
+  authorId  String   @db.Uuid
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([commentId, createdAt])
+}
+
+model DocumentSnapshot {
+  id          String   @id @default(uuid()) @db.Uuid
+  documentId  String   @db.Uuid
+  createdById String   @db.Uuid
+  label       String?
+  content     Json
+  createdAt   DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([documentId, createdAt])
+}
+
+model Invitation {
+  id         String            @id @default(uuid()) @db.Uuid
+  workspaceId String           @db.Uuid
+  inviterId   String           @db.Uuid
+  email      String
+  role       Role              @default(VIEWER)
+  tokenHash  String            @unique
+  status     InvitationStatus  @default(PENDING)
+  expiresAt  DateTime?
+  acceptedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation(fields: [inviterId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, email])
+}
+
+model Attachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  documentId String   @db.Uuid
+  uploaderId String   @db.Uuid
+  filename   String
+  mimeType   String
+  sizeBytes  Int
+  objectKey  String
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader User     @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([documentId, createdAt])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId String   @db.Uuid
+  documentId  String?  @db.Uuid
+  actorId     String   @db.Uuid
+  action      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document  Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  actor     User      @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, createdAt])
+}
