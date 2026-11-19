@@ -26,7 +26,7 @@ const envSchema = z.object({
   CANVAS_URL: optionalUrlWithProtocols("ws:", "wss:"),
   NEXT_PUBLIC_CANVAS_URL: optionalUrlWithProtocols("ws:", "wss:"),
   CANVAS_PORT: z.coerce.number().int().min(1).max(65535).optional(),
-  NEXT_PUBLIC_TLDRAW_LICENSE_KEY: optionalString,
+  TLDRAW_LICENSE_KEY: optionalString,
   OPENAI_API_KEY: optionalString,
   OPENAI_MODEL: optionalString,
   SUPABASE_URL: optionalUrlWithProtocols("http:", "https:"),

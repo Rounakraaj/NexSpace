@@ -17,5 +17,5 @@ export default async function DocumentPage({ params }: { params: Promise<{ docum
   if (access.status !== 200 || !access.role) notFound();
   const collaborationUrl = getPageCollaborationUrl();
   const canvasUrl = getCanvasSyncUrl();
-  return <DocumentEditor documentId={documentId} canEdit={access.role === "OWNER" || access.role === "EDITOR"} canComment={access.role !== "VIEWER"} userId={user.id} collaborationUrl={collaborationUrl} canvasUrl={canvasUrl} userName={user.name ?? user.email ?? "Teammate"} licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY} aiAvailable={Boolean(process.env.OPENAI_API_KEY)} />;
+  return <DocumentEditor documentId={documentId} canEdit={access.role === "OWNER" || access.role === "EDITOR"} canComment={access.role !== "VIEWER"} userId={user.id} collaborationUrl={collaborationUrl} canvasUrl={canvasUrl} userName={user.name ?? user.email ?? "Teammate"} licenseKey={process.env.TLDRAW_LICENSE_KEY} aiAvailable={Boolean(process.env.OPENAI_API_KEY)} />;
 }
